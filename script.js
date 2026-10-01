@@ -54,7 +54,7 @@ let starValue = 10;
 let maxHealth = 1;
 let health = 1;
 let invulnTime = 0; // if > time, snake is flashing/invulnerable
-let armorPercent = 1.0; // % of tail that is armored (TEMPORARILY 100% FOR TESTING)
+let armorPercent = 0; // % of tail that is armored
 
 // Entities
 let snake = [];
