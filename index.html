@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cosmic Sneke Hell</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="ui">
+        <div id="score-board">Stars: <span id="score">0</span></div>
+        <div id="health-board">Health: <span id="health">1</span></div>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="shop" class="overlay-panel hidden">
+        <h2>UPGRADE SHOP</h2>
+        <div class="upgrades">
+            <div class="upgrade">
+                <h3>Star Value (Lvl <span id="lvl-value">0</span>)</h3>
+                <p>Stars give more points.</p>
+                <button id="btn-value" onclick="buyUpgrade('value')">Buy (Cost: <span id="cost-value">50</span>)</button>
+            </div>
+            <div class="upgrade">
+                <h3>Agility (Lvl <span id="lvl-speed">0</span>)</h3>
+                <p>Snake follows mouse faster.</p>
+                <button id="btn-speed" onclick="buyUpgrade('speed')">Buy (Cost: <span id="cost-speed">100</span>)</button>
+            </div>
+            <div class="upgrade">
+                <h3>Compact Body (Lvl <span id="lvl-compact">0</span>)</h3>
+                <p>Segments are closer together.</p>
+                <button id="btn-compact" onclick="buyUpgrade('compact')">Buy (Cost: <span id="cost-compact">150</span>)</button>
+            </div>
+            <div class="upgrade">
+                <h3>Extra Life (Lvl <span id="lvl-health">0</span>)</h3>
+                <p>Survive additional hits.</p>
+                <button id="btn-health" onclick="buyUpgrade('health')">Buy (Cost: <span id="cost-health">250</span>)</button>
+            </div>
+        </div>
+        <button id="closeShopBtn" onclick="toggleShop()">PLAY AGAIN [SPACE]</button>
+    </div>
+
+    <div id="overlay" class="overlay-panel">
+        <h1>COSMIC SNEKE HELL</h1>
+        <p>Control the Cosmic Sneke with your mouse.</p>
+        <p>Eat stars to grow.</p>
+        <p>Avoid the space mines and their lasers!</p>
+        <button id="startBtn">START GAME</button>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

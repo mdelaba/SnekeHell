@@ -1,0 +1,455 @@
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const scoreEl = document.getElementById('score');
+const overlay = document.getElementById('overlay');
+const startBtn = document.getElementById('startBtn');
+
+let width, height;
+function resize() {
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Assets
+const IMAGES = {
+    bg: new Image(),
+    head: new Image(),
+    body: new Image(),
+    mine: new Image(),
+    star: new Image()
+};
+IMAGES.bg.src = 'assets/space3.png';
+IMAGES.head.src = 'assets/orb-red.png';
+IMAGES.body.src = 'assets/orb-blue.png';
+IMAGES.mine.src = 'assets/mine.png';
+IMAGES.star.src = 'assets/star.png';
+
+const AUDIO = {
+    lazer: new Audio('assets/lazer.wav'),
+    ping: new Audio('assets/p-ping.mp3')
+};
+AUDIO.lazer.volume = 0.3;
+AUDIO.ping.volume = 0.5;
+
+// Game State
+let gameState = 'START'; // START, PLAYING, SHOP, GAMEOVER
+let score = 0;
+let mouse = { x: width / 2, y: height / 2 };
+let lastTime = 0;
+
+// Upgrades system
+let upgrades = {
+    value: { level: 0, cost: 50, costMult: 1.5 },
+    speed: { level: 0, cost: 100, costMult: 1.8 },
+    compact: { level: 0, cost: 150, costMult: 2.0 },
+    health: { level: 0, cost: 250, costMult: 2.5 }
+};
+
+let starValue = 10;
+let maxHealth = 1;
+let health = 1;
+let invulnTime = 0; // if > time, snake is flashing/invulnerable
+
+// Entities
+let snake = [];
+let stars = [];
+let enemies = [];
+let lasers = [];
+
+let SEGMENT_DIST = 20;
+let SNAKE_SPEED = 0.15;
+const HEAD_RADIUS = 15;
+const BODY_RADIUS = 12;
+const ENEMY_RADIUS = 20;
+const STAR_RADIUS = 15;
+const LASER_RADIUS = 5;
+
+const shopOverlay = document.getElementById('shop');
+const healthEl = document.getElementById('health');
+
+function toggleShop() {
+    if (gameState === 'GAMEOVER') {
+        gameState = 'SHOP';
+        document.getElementById('overlay').classList.add('hidden');
+        shopOverlay.classList.remove('hidden');
+        updateShopUI();
+    } else if (gameState === 'SHOP') {
+        shopOverlay.classList.add('hidden');
+        initGame();
+    }
+}
+
+function buyUpgrade(type) {
+    let upg = upgrades[type];
+    if (score >= upg.cost) {
+        score -= upg.cost;
+        upg.level++;
+        upg.cost = Math.floor(upg.cost * upg.costMult);
+        
+        // Apply effects
+        if (type === 'value') starValue += 5;
+        if (type === 'speed') SNAKE_SPEED += 0.05;
+        if (type === 'compact') SEGMENT_DIST = Math.max(5, SEGMENT_DIST - 2);
+        if (type === 'health') { maxHealth++; health = maxHealth; healthEl.innerText = health; }
+        
+        scoreEl.innerText = score;
+        updateShopUI();
+    }
+}
+
+function updateShopUI() {
+    for (let type in upgrades) {
+        let upg = upgrades[type];
+        document.getElementById('lvl-' + type).innerText = upg.level;
+        document.getElementById('cost-' + type).innerText = upg.cost;
+        document.getElementById('btn-' + type).disabled = score < upg.cost;
+    }
+}
+
+window.addEventListener('keydown', e => {
+    if (e.code === 'Space') {
+        if (gameState === 'GAMEOVER' || gameState === 'SHOP') {
+            toggleShop();
+        }
+    }
+});
+
+window.addEventListener('mousemove', e => {
+    mouse.x = e.clientX;
+    mouse.y = e.clientY;
+});
+
+startBtn.onclick = () => {
+    initGame();
+    document.getElementById('overlay').classList.add('hidden');
+};
+
+function initGame() {
+    snake = [];
+    for(let i=0; i<3; i++) {
+        snake.push({ x: width/2, y: height/2 });
+    }
+    stars = [];
+    enemies = [];
+    lasers = [];
+    scoreEl.innerText = score;
+    health = maxHealth;
+    healthEl.innerText = health;
+    gameState = 'PLAYING';
+    spawnStar();
+    spawnEnemy(); // Instant action
+    spawnEnemy();
+    lastTime = performance.now();
+}
+
+function spawnStar() {
+    stars.push({
+        x: Math.random() * (width - 100) + 50,
+        y: Math.random() * (height - 100) + 50
+    });
+}
+
+function spawnEnemy() {
+    let edge = Math.floor(Math.random() * 4);
+    let ex, ey, vx, vy;
+    
+    // Determine type based on score
+    let type = 'mine';
+    let rand = Math.random();
+    if (score > 200) {
+        if (rand < 0.3) type = 'burst';
+        else if (rand < 0.6) type = 'hunter';
+    } else if (score > 50) {
+        if (rand < 0.4) type = 'hunter';
+    }
+    
+    let speed = (type === 'hunter') ? (Math.random() * 2 + 2) : (type === 'burst' ? 0.5 : Math.random() * 2 + 1);
+    
+    if (edge === 0) { // Top
+        ex = Math.random() * width; ey = -50;
+        vx = (Math.random() - 0.5) * 2; vy = speed;
+    } else if (edge === 1) { // Right
+        ex = width + 50; ey = Math.random() * height;
+        vx = -speed; vy = (Math.random() - 0.5) * 2;
+    } else if (edge === 2) { // Bottom
+        ex = Math.random() * width; ey = height + 50;
+        vx = (Math.random() - 0.5) * 2; vy = -speed;
+    } else { // Left
+        ex = -50; ey = Math.random() * height;
+        vx = speed; vy = (Math.random() - 0.5) * 2;
+    }
+    
+    enemies.push({ 
+        x: ex, y: ey, 
+        vx: vx, vy: vy, 
+        type: type,
+        nextShoot: performance.now() + Math.random()*2000 + 1000 
+    });
+}
+
+function circleIntersect(x1, y1, r1, x2, y2, r2) {
+    let dx = x2 - x1;
+    let dy = y2 - y1;
+    let dist = Math.sqrt(dx*dx + dy*dy);
+    return dist < (r1 + r2);
+}
+
+function update(dt) {
+    // Snake movement
+    let head = snake[0];
+    head.x += (mouse.x - head.x) * SNAKE_SPEED;
+    head.y += (mouse.y - head.y) * SNAKE_SPEED;
+    
+    for (let i = 1; i < snake.length; i++) {
+        let prev = snake[i-1];
+        let curr = snake[i];
+        let dx = prev.x - curr.x;
+        let dy = prev.y - curr.y;
+        let dist = Math.sqrt(dx*dx + dy*dy);
+        
+        if (dist > SEGMENT_DIST) {
+            let ratio = (dist - SEGMENT_DIST) / dist;
+            curr.x += dx * ratio * 0.5;
+            curr.y += dy * ratio * 0.5;
+        }
+    }
+
+    // Stars
+    for (let i = stars.length - 1; i >= 0; i--) {
+        let s = stars[i];
+        if (circleIntersect(head.x, head.y, HEAD_RADIUS, s.x, s.y, STAR_RADIUS)) {
+            stars.splice(i, 1);
+            score += starValue;
+            scoreEl.innerText = score;
+            snake.push({x: snake[snake.length-1].x, y: snake[snake.length-1].y});
+            AUDIO.ping.currentTime = 0;
+            AUDIO.ping.play().catch(()=>{});
+            spawnStar();
+        }
+    }
+
+    // Enemy Spawning (Scales up slowly)
+    let spawnRate = Math.min(0.01 + (score * 0.00005), 0.04);
+    if (Math.random() < spawnRate) {
+        spawnEnemy();
+    }
+    
+    let time = performance.now();
+    for (let i = enemies.length - 1; i >= 0; i--) {
+        let e = enemies[i];
+        
+        if (e.type === 'hunter') {
+            // Track player
+            let dx = head.x - e.x;
+            let dy = head.y - e.y;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist > 0) {
+                e.vx += (dx/dist) * 0.05;
+                e.vy += (dy/dist) * 0.05;
+                
+                // Limit speed
+                let speed = Math.sqrt(e.vx*e.vx + e.vy*e.vy);
+                if (speed > 3) {
+                    e.vx = (e.vx/speed) * 3;
+                    e.vy = (e.vy/speed) * 3;
+                }
+            }
+        }
+        
+        e.x += e.vx;
+        e.y += e.vy;
+        
+        // Shoot
+        if (time > e.nextShoot && e.type !== 'hunter' && e.x > 0 && e.x < width && e.y > 0 && e.y < height) {
+            let dx = head.x - e.x;
+            let dy = head.y - e.y;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+            
+            if (e.type === 'burst') {
+                for (let k = -1; k <= 1; k++) {
+                    let angle = Math.atan2(dy, dx) + (k * 0.2);
+                    lasers.push({
+                        x: e.x, y: e.y,
+                        vx: Math.cos(angle) * 5,
+                        vy: Math.sin(angle) * 5
+                    });
+                }
+                e.nextShoot = time + Math.random() * 3000 + 2000;
+            } else {
+                lasers.push({
+                    x: e.x, y: e.y,
+                    vx: (dx/dist) * 5,
+                    vy: (dy/dist) * 5
+                });
+                e.nextShoot = time + Math.random() * 3000 + 1500;
+            }
+            
+            AUDIO.lazer.currentTime = 0;
+            AUDIO.lazer.play().catch(()=>{});
+        }
+        
+        // Out of bounds cleanup
+        if (e.x < -100 || e.x > width + 100 || e.y < -100 || e.y > height + 100) {
+            enemies.splice(i, 1);
+            continue;
+        }
+        
+        // Collision with snake
+        if (time > invulnTime) {
+            for (let j = 0; j < snake.length; j++) {
+                let r = j === 0 ? HEAD_RADIUS : BODY_RADIUS;
+                if (circleIntersect(e.x, e.y, ENEMY_RADIUS, snake[j].x, snake[j].y, r)) {
+                    takeDamage(time);
+                    break;
+                }
+            }
+        }
+    }
+
+    // Lasers
+    for (let i = lasers.length - 1; i >= 0; i--) {
+        let l = lasers[i];
+        l.x += l.vx;
+        l.y += l.vy;
+        
+        if (l.x < -50 || l.x > width + 50 || l.y < -50 || l.y > height + 50) {
+            lasers.splice(i, 1);
+            continue;
+        }
+        
+        // Collision with snake
+        if (time > invulnTime) {
+            for (let j = 0; j < snake.length; j++) {
+                let r = j === 0 ? HEAD_RADIUS : BODY_RADIUS;
+                if (circleIntersect(l.x, l.y, LASER_RADIUS, snake[j].x, snake[j].y, r)) {
+                    takeDamage(time);
+                    lasers.splice(i, 1);
+                    break;
+                }
+            }
+        }
+    }
+}
+
+function takeDamage(time) {
+    if (health > 1) {
+        health--;
+        healthEl.innerText = health;
+        invulnTime = time + 2000; // 2 seconds of invulnerability
+        // Lose some length (max 10 segments or down to 3)
+        let removeCount = Math.min(10, snake.length - 3);
+        if (removeCount > 0) {
+            snake.splice(snake.length - removeCount, removeCount);
+        }
+    } else {
+        health = 0;
+        healthEl.innerText = health;
+        gameOver();
+    }
+}
+
+function gameOver() {
+    gameState = 'GAMEOVER';
+    document.getElementById('overlay').querySelector('h1').innerText = "GAME OVER";
+    document.getElementById('overlay').querySelector('p').innerText = `Accumulated Stars: ${score}`;
+    startBtn.innerText = "OPEN SHOP";
+    startBtn.onclick = toggleShop;
+    document.getElementById('overlay').classList.remove('hidden');
+}
+
+function draw() {
+    // Draw Background tiled
+    if (IMAGES.bg.complete && IMAGES.bg.naturalWidth > 0) {
+        let ptrn = ctx.createPattern(IMAGES.bg, 'repeat');
+        ctx.fillStyle = ptrn;
+        ctx.fillRect(0, 0, width, height);
+    } else {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, width, height);
+    }
+
+    // Draw Lasers
+    ctx.fillStyle = '#ff0044';
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = '#ff0044';
+    for (let l of lasers) {
+        ctx.beginPath();
+        ctx.arc(l.x, l.y, LASER_RADIUS, 0, Math.PI*2);
+        ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+
+    // Draw Stars
+    if (IMAGES.star.complete) {
+        for (let s of stars) {
+            ctx.drawImage(IMAGES.star, s.x - STAR_RADIUS, s.y - STAR_RADIUS, STAR_RADIUS*2, STAR_RADIUS*2);
+        }
+    }
+
+    // Draw Enemies
+    for (let e of enemies) {
+        if (e.type === 'mine') {
+            if (IMAGES.mine.complete) {
+                ctx.drawImage(IMAGES.mine, e.x - ENEMY_RADIUS, e.y - ENEMY_RADIUS, ENEMY_RADIUS*2, ENEMY_RADIUS*2);
+            } else {
+                ctx.fillStyle = '#888';
+                ctx.beginPath();
+                ctx.arc(e.x, e.y, ENEMY_RADIUS, 0, Math.PI*2);
+                ctx.fill();
+            }
+        } else if (e.type === 'hunter') {
+            ctx.fillStyle = '#ff3300';
+            ctx.beginPath();
+            ctx.moveTo(e.x, e.y - ENEMY_RADIUS);
+            ctx.lineTo(e.x - ENEMY_RADIUS, e.y + ENEMY_RADIUS);
+            ctx.lineTo(e.x + ENEMY_RADIUS, e.y + ENEMY_RADIUS);
+            ctx.fill();
+        } else if (e.type === 'burst') {
+            ctx.fillStyle = '#9900ff';
+            ctx.beginPath();
+            for(let k = 0; k < 6; k++) {
+                let angle = (k / 6) * Math.PI * 2;
+                let hx = e.x + Math.cos(angle) * ENEMY_RADIUS;
+                let hy = e.y + Math.sin(angle) * ENEMY_RADIUS;
+                if (k === 0) ctx.moveTo(hx, hy);
+                else ctx.lineTo(hx, hy);
+            }
+            ctx.closePath();
+            ctx.fill();
+        }
+    }
+
+    // Draw Snake (Body then Head)
+    let now = performance.now();
+    if (now > invulnTime || Math.floor(now / 150) % 2 === 0) {
+        if (IMAGES.body.complete) {
+            for (let i = snake.length - 1; i > 0; i--) {
+                let s = snake[i];
+                ctx.drawImage(IMAGES.body, s.x - BODY_RADIUS, s.y - BODY_RADIUS, BODY_RADIUS*2, BODY_RADIUS*2);
+            }
+        }
+        
+        if (IMAGES.head.complete && snake.length > 0) {
+            let h = snake[0];
+            ctx.drawImage(IMAGES.head, h.x - HEAD_RADIUS, h.y - HEAD_RADIUS, HEAD_RADIUS*2, HEAD_RADIUS*2);
+        }
+    }
+}
+
+function gameLoop(time) {
+    let dt = time - lastTime;
+    lastTime = time;
+
+    if (gameState === 'PLAYING') {
+        update(dt);
+    }
+    
+    draw();
+    requestAnimationFrame(gameLoop);
+}
+
+requestAnimationFrame(gameLoop);
