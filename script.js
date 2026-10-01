@@ -160,26 +160,44 @@ function spawnEnemy() {
     // Determine type based on score
     let type = 'mine';
     let rand = Math.random();
-    if (score > 200) {
+    if (score > 600) {
+        if (rand < 0.2) type = 'sniper';
+        else if (rand < 0.35) type = 'juggernaut';
+        else if (rand < 0.55) type = 'burst';
+        else if (rand < 0.8) type = 'hunter';
+    } else if (score > 400) {
+        if (rand < 0.15) type = 'juggernaut';
+        else if (rand < 0.4) type = 'burst';
+        else if (rand < 0.7) type = 'hunter';
+    } else if (score > 200) {
         if (rand < 0.3) type = 'burst';
         else if (rand < 0.6) type = 'hunter';
     } else if (score > 50) {
         if (rand < 0.4) type = 'hunter';
     }
     
-    let speed = (type === 'hunter') ? (Math.random() * 2 + 2) : (type === 'burst' ? 0.5 : Math.random() * 2 + 1);
+    let speed = 1;
+    if (type === 'hunter') speed = Math.random() * 2 + 2;
+    if (type === 'burst') speed = 0.5;
+    if (type === 'juggernaut') speed = 0.2;
+    if (type === 'sniper') speed = 0.3;
+    if (type === 'mine') speed = Math.random() * 2 + 1;
+    
+    let r = ENEMY_RADIUS;
+    if (type === 'juggernaut') r = 60;
+    if (type === 'sniper') r = 15;
     
     if (edge === 0) { // Top
-        ex = Math.random() * width; ey = -50;
+        ex = Math.random() * width; ey = -100;
         vx = (Math.random() - 0.5) * 2; vy = speed;
     } else if (edge === 1) { // Right
-        ex = width + 50; ey = Math.random() * height;
+        ex = width + 100; ey = Math.random() * height;
         vx = -speed; vy = (Math.random() - 0.5) * 2;
     } else if (edge === 2) { // Bottom
-        ex = Math.random() * width; ey = height + 50;
+        ex = Math.random() * width; ey = height + 100;
         vx = (Math.random() - 0.5) * 2; vy = -speed;
     } else { // Left
-        ex = -50; ey = Math.random() * height;
+        ex = -100; ey = Math.random() * height;
         vx = speed; vy = (Math.random() - 0.5) * 2;
     }
     
@@ -187,6 +205,7 @@ function spawnEnemy() {
         x: ex, y: ey, 
         vx: vx, vy: vy, 
         type: type,
+        r: r,
         nextShoot: performance.now() + Math.random()*2000 + 1000 
     });
 }
@@ -264,7 +283,7 @@ function update(dt) {
         e.y += e.vy;
         
         // Shoot
-        if (time > e.nextShoot && e.type !== 'hunter' && e.x > 0 && e.x < width && e.y > 0 && e.y < height) {
+        if (time > e.nextShoot && e.type !== 'hunter' && e.x > -e.r && e.x < width + e.r && e.y > -e.r && e.y < height + e.r) {
             let dx = head.x - e.x;
             let dy = head.y - e.y;
             let dist = Math.sqrt(dx*dx + dy*dy);
@@ -279,7 +298,24 @@ function update(dt) {
                     });
                 }
                 e.nextShoot = time + Math.random() * 3000 + 2000;
-            } else {
+            } else if (e.type === 'sniper') {
+                lasers.push({
+                    x: e.x, y: e.y,
+                    vx: (dx/dist) * 15, // Extremely fast
+                    vy: (dy/dist) * 15
+                });
+                e.nextShoot = time + Math.random() * 2000 + 3000;
+            } else if (e.type === 'juggernaut') {
+                for (let k = 0; k < 8; k++) {
+                    let angle = (k / 8) * Math.PI * 2;
+                    lasers.push({
+                        x: e.x, y: e.y,
+                        vx: Math.cos(angle) * 4,
+                        vy: Math.sin(angle) * 4
+                    });
+                }
+                e.nextShoot = time + 2000;
+            } else { // Mine
                 lasers.push({
                     x: e.x, y: e.y,
                     vx: (dx/dist) * 5,
@@ -293,7 +329,7 @@ function update(dt) {
         }
         
         // Out of bounds cleanup
-        if (e.x < -100 || e.x > width + 100 || e.y < -100 || e.y > height + 100) {
+        if (e.x < -150 || e.x > width + 150 || e.y < -150 || e.y > height + 150) {
             enemies.splice(i, 1);
             continue;
         }
@@ -302,7 +338,7 @@ function update(dt) {
         if (time > invulnTime) {
             for (let j = 0; j < snake.length; j++) {
                 let r = j === 0 ? HEAD_RADIUS : BODY_RADIUS;
-                if (circleIntersect(e.x, e.y, ENEMY_RADIUS, snake[j].x, snake[j].y, r)) {
+                if (circleIntersect(e.x, e.y, e.r, snake[j].x, snake[j].y, r)) {
                     takeDamage(time);
                     break;
                 }
@@ -394,31 +430,48 @@ function draw() {
     for (let e of enemies) {
         if (e.type === 'mine') {
             if (IMAGES.mine.complete) {
-                ctx.drawImage(IMAGES.mine, e.x - ENEMY_RADIUS, e.y - ENEMY_RADIUS, ENEMY_RADIUS*2, ENEMY_RADIUS*2);
+                ctx.drawImage(IMAGES.mine, e.x - e.r, e.y - e.r, e.r*2, e.r*2);
             } else {
                 ctx.fillStyle = '#888';
                 ctx.beginPath();
-                ctx.arc(e.x, e.y, ENEMY_RADIUS, 0, Math.PI*2);
+                ctx.arc(e.x, e.y, e.r, 0, Math.PI*2);
                 ctx.fill();
             }
         } else if (e.type === 'hunter') {
             ctx.fillStyle = '#ff3300';
             ctx.beginPath();
-            ctx.moveTo(e.x, e.y - ENEMY_RADIUS);
-            ctx.lineTo(e.x - ENEMY_RADIUS, e.y + ENEMY_RADIUS);
-            ctx.lineTo(e.x + ENEMY_RADIUS, e.y + ENEMY_RADIUS);
+            ctx.moveTo(e.x, e.y - e.r);
+            ctx.lineTo(e.x - e.r, e.y + e.r);
+            ctx.lineTo(e.x + e.r, e.y + e.r);
             ctx.fill();
         } else if (e.type === 'burst') {
             ctx.fillStyle = '#9900ff';
             ctx.beginPath();
             for(let k = 0; k < 6; k++) {
                 let angle = (k / 6) * Math.PI * 2;
-                let hx = e.x + Math.cos(angle) * ENEMY_RADIUS;
-                let hy = e.y + Math.sin(angle) * ENEMY_RADIUS;
+                let hx = e.x + Math.cos(angle) * e.r;
+                let hy = e.y + Math.sin(angle) * e.r;
                 if (k === 0) ctx.moveTo(hx, hy);
                 else ctx.lineTo(hx, hy);
             }
             ctx.closePath();
+            ctx.fill();
+        } else if (e.type === 'juggernaut') {
+            ctx.fillStyle = '#ffaa00';
+            ctx.beginPath();
+            ctx.arc(e.x, e.y, e.r, 0, Math.PI*2);
+            ctx.fill();
+            ctx.fillStyle = '#000'; // Inner hole
+            ctx.beginPath();
+            ctx.arc(e.x, e.y, e.r * 0.4, 0, Math.PI*2);
+            ctx.fill();
+        } else if (e.type === 'sniper') {
+            ctx.fillStyle = '#00ffff';
+            ctx.beginPath();
+            ctx.moveTo(e.x, e.y - e.r);
+            ctx.lineTo(e.x + e.r, e.y);
+            ctx.lineTo(e.x, e.y + e.r);
+            ctx.lineTo(e.x - e.r, e.y);
             ctx.fill();
         }
     }
