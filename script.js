@@ -45,6 +45,7 @@ let lastTime = 0;
 let upgrades = {
     value: { level: 0, cost: 50, costMult: 1.5 },
     speed: { level: 0, cost: 100, costMult: 1.8 },
+    tension: { level: 0, cost: 150, costMult: 2.0 },
     health: { level: 0, cost: 250, costMult: 2.5 },
     armor: { level: 0, cost: 250, costMult: 2.2 }
 };
@@ -62,6 +63,7 @@ let enemies = [];
 let lasers = [];
 
 let SNAKE_SPEED = 0.15;
+let TAIL_TENSION = 0.4; // controls rubber band snap back speed
 const HEAD_RADIUS = 15;
 const BODY_RADIUS = 12;
 const ENEMY_RADIUS = 20;
@@ -93,6 +95,7 @@ function buyUpgrade(type) {
         // Apply effects
         if (type === 'value') starValue += 5;
         if (type === 'speed') SNAKE_SPEED += 0.05;
+        if (type === 'tension') TAIL_TENSION = Math.min(0.95, TAIL_TENSION + 0.1);
         if (type === 'health') { maxHealth++; health = maxHealth; healthEl.innerText = health; }
         if (type === 'armor') armorPercent = Math.min(1.0, armorPercent + 0.1); // +10% each level
         
@@ -229,8 +232,8 @@ function update(dt) {
         let curr = snake[i];
         
         // Always lerp to the exact position of the segment in front of you
-        curr.x += (prev.x - curr.x) * 0.4;
-        curr.y += (prev.y - curr.y) * 0.4;
+        curr.x += (prev.x - curr.x) * TAIL_TENSION;
+        curr.y += (prev.y - curr.y) * TAIL_TENSION;
     }
 
     // Adjust length based on score
