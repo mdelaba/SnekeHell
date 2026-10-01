@@ -46,13 +46,15 @@ let upgrades = {
     value: { level: 0, cost: 50, costMult: 1.5 },
     speed: { level: 0, cost: 100, costMult: 1.8 },
     compact: { level: 0, cost: 150, costMult: 2.0 },
-    health: { level: 0, cost: 250, costMult: 2.5 }
+    health: { level: 0, cost: 250, costMult: 2.5 },
+    armor: { level: 0, cost: 300, costMult: 2.5 }
 };
 
 let starValue = 10;
 let maxHealth = 1;
 let health = 1;
 let invulnTime = 0; // if > time, snake is flashing/invulnerable
+let armorPercent = 0; // % of tail that is armored
 
 // Entities
 let snake = [];
@@ -95,6 +97,7 @@ function buyUpgrade(type) {
         if (type === 'speed') SNAKE_SPEED += 0.05;
         if (type === 'compact') SEGMENT_DIST = Math.max(5, SEGMENT_DIST - 2);
         if (type === 'health') { maxHealth++; health = maxHealth; healthEl.innerText = health; }
+        if (type === 'armor') armorPercent = Math.min(1.0, armorPercent + 0.1); // +10% each level
         
         scoreEl.innerText = score;
         updateShopUI();
@@ -347,9 +350,17 @@ function update(dt) {
         if (time > invulnTime) {
             for (let j = 0; j < snake.length; j++) {
                 let r = j === 0 ? HEAD_RADIUS : BODY_RADIUS;
+                let isArmored = j >= snake.length - Math.floor(snake.length * armorPercent) && j !== 0; // head is never armored
                 if (circleIntersect(e.x, e.y, e.r, snake[j].x, snake[j].y, r)) {
-                    takeDamage(time);
-                    break;
+                    if (isArmored) {
+                        enemies.splice(i, 1);
+                        score += 5; // bonus points for destroying enemy
+                        scoreEl.innerText = score;
+                        break;
+                    } else {
+                        takeDamage(time);
+                        break;
+                    }
                 }
             }
         }
@@ -370,10 +381,16 @@ function update(dt) {
         if (time > invulnTime) {
             for (let j = 0; j < snake.length; j++) {
                 let r = j === 0 ? HEAD_RADIUS : BODY_RADIUS;
+                let isArmored = j >= snake.length - Math.floor(snake.length * armorPercent) && j !== 0;
                 if (circleIntersect(l.x, l.y, LASER_RADIUS, snake[j].x, snake[j].y, r)) {
-                    takeDamage(time);
-                    lasers.splice(i, 1);
-                    break;
+                    if (isArmored) {
+                        lasers.splice(i, 1);
+                        break;
+                    } else {
+                        takeDamage(time);
+                        lasers.splice(i, 1);
+                        break;
+                    }
                 }
             }
         }
@@ -491,6 +508,15 @@ function draw() {
             for (let i = snake.length - 1; i > 0; i--) {
                 let s = snake[i];
                 ctx.drawImage(IMAGES.body, s.x - BODY_RADIUS, s.y - BODY_RADIUS, BODY_RADIUS*2, BODY_RADIUS*2);
+                
+                let isArmored = i >= snake.length - Math.floor(snake.length * armorPercent);
+                if (isArmored) {
+                    ctx.strokeStyle = '#ffff00';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(s.x, s.y, BODY_RADIUS + 2, 0, Math.PI*2);
+                    ctx.stroke();
+                }
             }
         }
         
