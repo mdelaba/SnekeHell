@@ -130,7 +130,8 @@ startBtn.onclick = () => {
 
 function initGame() {
     snake = [];
-    for(let i=0; i<3; i++) {
+    let startLen = Math.max(3, 3 + Math.floor(score / 10));
+    for(let i=0; i<startLen; i++) {
         snake.push({ x: width/2, y: height/2 });
     }
     stars = [];
@@ -237,6 +238,15 @@ function update(dt) {
         }
     }
 
+    // Adjust length based on score
+    let targetLength = Math.max(3, 3 + Math.floor(score / 10));
+    while (snake.length < targetLength) {
+        snake.push({x: snake[snake.length-1].x, y: snake[snake.length-1].y});
+    }
+    while (snake.length > targetLength) {
+        snake.pop();
+    }
+
     // Stars
     for (let i = stars.length - 1; i >= 0; i--) {
         let s = stars[i];
@@ -244,7 +254,6 @@ function update(dt) {
             stars.splice(i, 1);
             score += starValue;
             scoreEl.innerText = score;
-            snake.push({x: snake[snake.length-1].x, y: snake[snake.length-1].y});
             AUDIO.ping.currentTime = 0;
             AUDIO.ping.play().catch(()=>{});
             spawnStar();
@@ -376,11 +385,10 @@ function takeDamage(time) {
         health--;
         healthEl.innerText = health;
         invulnTime = time + 2000; // 2 seconds of invulnerability
-        // Lose some length (max 10 segments or down to 3)
-        let removeCount = Math.min(10, snake.length - 3);
-        if (removeCount > 0) {
-            snake.splice(snake.length - removeCount, removeCount);
-        }
+        
+        // Lose score (which loses length automatically next frame)
+        score = Math.max(0, score - 50); 
+        scoreEl.innerText = score;
     } else {
         health = 0;
         healthEl.innerText = health;
