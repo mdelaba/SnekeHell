@@ -47,7 +47,7 @@ let upgrades = {
     speed: { level: 0, cost: 100, costMult: 1.8 },
     compact: { level: 0, cost: 150, costMult: 2.0 },
     health: { level: 0, cost: 250, costMult: 2.5 },
-    armor: { level: 0, cost: 300, costMult: 2.5 }
+    armor: { level: 0, cost: 150, costMult: 1.8 }
 };
 
 let starValue = 10;
