@@ -45,7 +45,6 @@ let lastTime = 0;
 let upgrades = {
     value: { level: 0, cost: 50, costMult: 1.5 },
     speed: { level: 0, cost: 100, costMult: 1.8 },
-    compact: { level: 0, cost: 150, costMult: 2.0 },
     health: { level: 0, cost: 250, costMult: 2.5 },
     armor: { level: 0, cost: 250, costMult: 2.2 }
 };
@@ -62,7 +61,6 @@ let stars = [];
 let enemies = [];
 let lasers = [];
 
-let SEGMENT_DIST = 20;
 let SNAKE_SPEED = 0.15;
 const HEAD_RADIUS = 15;
 const BODY_RADIUS = 12;
@@ -95,7 +93,6 @@ function buyUpgrade(type) {
         // Apply effects
         if (type === 'value') starValue += 5;
         if (type === 'speed') SNAKE_SPEED += 0.05;
-        if (type === 'compact') SEGMENT_DIST = Math.max(5, SEGMENT_DIST - 2);
         if (type === 'health') { maxHealth++; health = maxHealth; healthEl.innerText = health; }
         if (type === 'armor') armorPercent = Math.min(1.0, armorPercent + 0.1); // +10% each level
         
@@ -230,15 +227,10 @@ function update(dt) {
     for (let i = 1; i < snake.length; i++) {
         let prev = snake[i-1];
         let curr = snake[i];
-        let dx = prev.x - curr.x;
-        let dy = prev.y - curr.y;
-        let dist = Math.sqrt(dx*dx + dy*dy);
         
-        if (dist > SEGMENT_DIST) {
-            let ratio = (dist - SEGMENT_DIST) / dist;
-            curr.x += dx * ratio * 0.5;
-            curr.y += dy * ratio * 0.5;
-        }
+        // Always lerp to the exact position of the segment in front of you
+        curr.x += (prev.x - curr.x) * 0.4;
+        curr.y += (prev.y - curr.y) * 0.4;
     }
 
     // Adjust length based on score
